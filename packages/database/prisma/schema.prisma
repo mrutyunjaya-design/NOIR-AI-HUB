@@ -1,0 +1,576 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  passwordHash      String?
+  name              String?
+  avatarUrl         String?
+  emailVerified     Boolean   @default(false)
+  emailVerifiedAt   DateTime?
+
+  role              Role      @default(USER)
+  status            UserStatus @default(ACTIVE)
+
+  // Relations
+  conversations     Conversation[]
+  messages          Message[]
+  oauthAccounts     OAuthAccount[]
+  refreshTokens     RefreshToken[]
+  usageRecords      UsageRecord[]
+  providerConnections ProviderConnection[]
+  subscriptions     Subscription[]
+  apiKeys           ApiKey[]
+  emailVerifications EmailVerification[]
+  passwordResets    PasswordReset[]
+  auditLogs         AuditLog[]
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([email])
+  @@index([status])
+}
+
+enum Role {
+  USER
+  MODERATOR
+  ADMIN
+  OWNER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  DELETED
+}
+
+model OAuthAccount {
+  id              String    @id @default(cuid())
+  userId          String
+  provider        String    // google, apple, github, etc.
+  providerAccountId String
+  refreshToken    String?
+  accessToken     String?
+  expiresAt       DateTime?
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model RefreshToken {
+  id              String    @id @default(cuid())
+  userId          String
+  token           String    @unique
+  expiresAt       DateTime
+  revokedAt       DateTime?
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model EmailVerification {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  token           String    @unique
+  expiresAt       DateTime
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime  @default(now())
+
+  @@index([expiresAt])
+}
+
+model PasswordReset {
+  id              String    @id @default(cuid())
+  userId          String
+  token           String    @unique
+  expiresAt       DateTime
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model ApiKey {
+  id              String    @id @default(cuid())
+  userId          String
+  name            String
+  keyHash         String    @unique
+  lastUsedAt      DateTime?
+  expiresAt       DateTime?
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+// ============================================
+// AI PROVIDERS & MODELS
+// ============================================
+
+model Provider {
+  id              String    @id @default(cuid())
+  slug            String    @unique
+  name            String
+  description     String?
+  logoUrl         String?
+  enabled         Boolean   @default(true)
+  category        ProviderCategory
+  website         String?
+
+  // Relations
+  models          Model[]
+  connections     ProviderConnection[]
+  pricing         ProviderPricing?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([enabled])
+  @@index([category])
+}
+
+enum ProviderCategory {
+  CHAT
+  CODING
+  RESEARCH
+  IMAGE
+  VIDEO
+  AUDIO
+  LOCAL
+  INFRASTRUCTURE
+}
+
+model Model {
+  id              String    @id @default(cuid())
+  providerId      String
+  slug            String
+  displayName     String
+  description     String?
+  contextWindow   Int?
+  maxTokens       Int?
+
+  // Capabilities
+  supportsText    Boolean   @default(true)
+  supportsVision  Boolean   @default(false)
+  supportsAudio   Boolean   @default(false)
+  supportsTools   Boolean   @default(false)
+  supportsImages  Boolean   @default(false)
+  supportsVideo   Boolean   @default(false)
+  supportsStreaming Boolean @default(true)
+
+  // Quality & Performance
+  qualityScore    Float     @default(0.0) // 0-100
+  speedScore      Float     @default(0.0) // 0-100
+  costScore       Float     @default(0.0) // 0-100
+
+  // Access
+  accessType      AccessType @default(PAID_API)
+  requiresApiKey  Boolean   @default(true)
+  freeQuotaLimit  Int?      // requests per day
+
+  // Status
+  isDeprecated    Boolean   @default(false)
+  discontinued    Boolean   @default(false)
+
+  // Relations
+  provider        Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  capabilities    ModelCapability[]
+  pricing         ModelPricing?
+  usageRecords    UsageRecord[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([providerId, slug])
+  @@index([providerId])
+  @@index([accessType])
+}
+
+enum AccessType {
+  FREE
+  FREEMIUM
+  PAID_API
+  BYOK      // Bring Your Own Key
+  LOCAL
+  DISABLED
+}
+
+model ModelCapability {
+  id              String    @id @default(cuid())
+  modelId         String
+  capability      String    // chat, vision, code, reasoning, tools, etc.
+  confidence      Float     @default(0.95) // How confident we are
+
+  model           Model     @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  @@unique([modelId, capability])
+  @@index([modelId])
+}
+
+model ProviderPricing {
+  id              String    @id @default(cuid())
+  providerId      String    @unique
+  currency        String    @default("USD")
+  inputCostPer1k  Float     @default(0.0)  // Cost per 1000 input tokens
+  outputCostPer1k Float     @default(0.0)  // Cost per 1000 output tokens
+  rateLimit       Int?      // Requests per minute
+  notes           String?
+
+  provider        Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  updatedAt       DateTime  @updatedAt
+}
+
+model ModelPricing {
+  id              String    @id @default(cuid())
+  modelId         String    @unique
+  currency        String    @default("USD")
+  inputCostPer1k  Float     @default(0.0)  // Cost per 1000 input tokens
+  outputCostPer1k Float     @default(0.0)  // Cost per 1000 output tokens
+  batchCostPer1k  Float?    // Batch/bulk pricing
+  notes           String?
+
+  model           Model     @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  updatedAt       DateTime  @updatedAt
+}
+
+// ============================================
+// USER PROVIDER CONNECTIONS (BYOK)
+// ============================================
+
+model ProviderConnection {
+  id              String    @id @default(cuid())
+  userId          String
+  providerId      String
+  
+  // Encrypted credentials
+  encryptedApiKey String
+  label           String?   // User-friendly name
+  
+  // Status
+  connected       Boolean   @default(true)
+  verified        Boolean   @default(false)
+  verifiedAt      DateTime?
+  failureReason   String?
+  
+  // Last activity
+  lastUsedAt      DateTime?
+  lastTestAt      DateTime?
+
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider        Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([userId, providerId])
+  @@index([userId])
+  @@index([providerId])
+  @@index([connected])
+}
+
+// ============================================
+// CONVERSATIONS & MESSAGES
+// ============================================
+
+model Conversation {
+  id              String    @id @default(cuid())
+  userId          String
+  title           String?
+  description     String?
+  archived        Boolean   @default(false)
+  
+  // Metadata
+  mode            ChatMode  @default(AUTO)  // auto, chat, coding, research
+  messageCount    Int       @default(0)
+
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages        Message[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([archived])
+  @@index([createdAt])
+}
+
+enum ChatMode {
+  AUTO
+  CHAT
+  CODING
+  RESEARCH
+  PRIVATE    // Prefers local models
+}
+
+model Message {
+  id              String    @id @default(cuid())
+  conversationId  String
+  
+  // Content
+  role            MessageRole
+  content         String
+  
+  // Provider info
+  providerId      String?
+  modelId         String?
+  provider        String?   // Denormalized for performance
+  model           String?   // Denormalized for performance
+  
+  // Token usage
+  inputTokens     Int?
+  outputTokens    Int?
+  totalTokens     Int?
+  
+  // Performance
+  latencyMs       Int?
+  finishReason    String?   // stop, length, error, etc.
+  
+  // Cost
+  estimatedCost   Float?    // In USD
+  
+  // Metadata
+  requestId       String?   @unique
+  error           String?
+  
+  // Relations
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  attachments     MessageAttachment[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([conversationId])
+  @@index([providerId])
+  @@index([modelId])
+  @@index([role])
+  @@index([createdAt])
+}
+
+enum MessageRole {
+  SYSTEM
+  USER
+  ASSISTANT
+  TOOL
+}
+
+model MessageAttachment {
+  id              String    @id @default(cuid())
+  messageId       String
+  filename        String
+  mimeType        String
+  size            Int
+  storageUrl      String    // S3 or similar
+  uploadedAt      DateTime
+
+  message         Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+}
+
+// ============================================
+// USAGE & BILLING
+// ============================================
+
+model UsageRecord {
+  id              String    @id @default(cuid())
+  userId          String
+  providerId      String
+  modelId         String
+  
+  // Request info
+  requestId       String    @unique
+  conversationId  String?
+  messageId       String?
+  
+  // Tokens
+  inputTokens     Int
+  outputTokens    Int
+  totalTokens     Int
+  
+  // Cost
+  estimatedCost   Float     // In USD
+  actualCost      Float?    // After billing confirmation
+  
+  // Performance
+  latencyMs       Int
+  
+  // Status
+  status          RequestStatus @default(SUCCESS)
+  errorMessage    String?
+
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider        Provider  @relation(fields: [providerId], references: [id])
+  model           Model     @relation(fields: [modelId], references: [id])
+
+  createdAt       DateTime  @default(now())
+
+  @@index([userId])
+  @@index([providerId])
+  @@index([modelId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum RequestStatus {
+  SUCCESS
+  FAILED
+  RATE_LIMITED
+  QUOTA_EXCEEDED
+  INVALID_REQUEST
+  PROVIDER_ERROR
+}
+
+model Subscription {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  
+  // Plan
+  tier            SubscriptionTier @default(FREE)
+  status          SubscriptionStatus @default(ACTIVE)
+  
+  // Quotas
+  monthlyQuota    Int       // Total requests per month
+  quotaUsed       Int       @default(0)
+  quotaResetAt    DateTime?
+  
+  // Billing
+  stripeId        String?   @unique // Stripe subscription ID
+  renewalDate     DateTime?
+  cancelledAt     DateTime?
+  
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+enum SubscriptionTier {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+  PAST_DUE
+}
+
+model RateLimitRecord {
+  id              String    @id @default(cuid())
+  userId          String
+  providerId      String
+  
+  // Window
+  windowStart     DateTime
+  windowEnd       DateTime
+  
+  // Count
+  requestCount    Int       @default(0)
+  tokenCount      Int       @default(0)
+  
+  // Limit
+  requestLimit    Int
+  tokenLimit      Int
+  
+  @@unique([userId, providerId, windowStart])
+  @@index([userId])
+  @@index([windowStart])
+}
+
+// ============================================
+// AUDIT & COMPLIANCE
+// ============================================
+
+model AuditLog {
+  id              String    @id @default(cuid())
+  userId          String?
+  action          String    // login, logout, api_key_created, provider_connected, etc.
+  resourceType    String?   // user, conversation, provider, etc.
+  resourceId      String?
+  changes         Json?     // What changed
+  ipAddress       String?
+  userAgent       String?
+  status          String    // success, failure
+  message         String?
+
+  user            User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  createdAt       DateTime  @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([resourceType])
+  @@index([createdAt])
+}
+
+// ============================================
+// SYSTEM & CONFIGURATION
+// ============================================
+
+model FeatureFlag {
+  id              String    @id @default(cuid())
+  name            String    @unique
+  enabled         Boolean   @default(false)
+  description     String?
+  rolloutPercent  Int       @default(0) // 0-100
+  targetRoles     Role[]    @default([])
+  targetUsers     String[]  @default([])
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model SystemSetting {
+  id              String    @id @default(cuid())
+  key             String    @unique
+  value           String
+  description     String?
+  category        String?   // api, billing, auth, etc.
+  isSecret        Boolean   @default(false)
+
+  updatedAt       DateTime  @updatedAt
+  updatedBy       String?
+
+  @@index([category])
+}
