@@ -1,0 +1,25 @@
+{
+  "name": "noir-ai-hub",
+  "version": "0.1.0",
+  "description": "An open-source unified AI workspace for accessing multiple AI providers, local LLMs, coding agents, research tools, and developer services from one interface.",
+  "private": true,
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "type-check": "turbo run type-check",
+    "migrate": "cd packages/database && prisma migrate deploy",
+    "seed": "cd packages/database && prisma db seed"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "turbo": "^1.10.0"
+  },
+  "packageManager": "pnpm@9.0.0+"
+}
