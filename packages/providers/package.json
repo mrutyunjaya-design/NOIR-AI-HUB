@@ -1,0 +1,28 @@
+{
+  "name": "@noir/providers",
+  "version": "0.1.0",
+  "description": "NOIR unified AI provider abstraction layer",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./core": "./dist/core/index.js",
+    "./openai": "./dist/openai/index.js",
+    "./gemini": "./dist/gemini/index.js",
+    "./ollama": "./dist/ollama/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}
