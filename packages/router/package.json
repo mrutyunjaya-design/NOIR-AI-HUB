@@ -1,0 +1,22 @@
+{
+  "name": "@noir/router",
+  "version": "0.1.0",
+  "description": "NOIR intelligent model routing and selection engine",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@noir/providers": "workspace:*",
+    "@noir/database": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}
